@@ -629,12 +629,20 @@ html, body {
   top: 50%;
   transform: translateY(-50%);
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
   z-index: 850;
   pointer-events: none; /* 자식 요소에서 개별적으로 활성화 */
 }
 
 #stat-scroll > * { pointer-events: auto; }
+
+.stat-scroll-main {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
 
 .stat-scroll-badge {
   position: absolute;
@@ -738,3 +746,98 @@ html, body {
 @media (min-width: 768px) {
   .stat-scroll-track-col, .stat-scroll-labels { height: min(50vh, 400px); }
 }
+
+/* ═══════════════════════════════════════════
+   예측 요소 선택기 (windy.com 스타일)
+   세로 스크롤바 하단에 위치, 평소엔 현재 요소만 표시
+   클릭 시에만 전체 목록이 펼쳐짐
+   ═══════════════════════════════════════════ */
+
+.elem-picker {
+  position: relative;
+}
+
+.elem-picker-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(22, 27, 34, 0.9);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s, background 0.15s;
+}
+.elem-picker-compact:active { background: var(--bg-surface); }
+.elem-picker.open .elem-picker-compact {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.elem-picker-name { font-variant-numeric: tabular-nums; }
+
+.elem-picker-chevron {
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+.elem-picker.open .elem-picker-chevron {
+  transform: rotate(180deg);
+  color: #fff;
+}
+
+.elem-picker-list {
+  position: absolute;
+  right: calc(100% + 8px);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(22, 27, 34, 0.96);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  min-width: 140px;
+  opacity: 0;
+  transform: translateX(6px);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.elem-picker.open .elem-picker-list {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.elem-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.elem-picker-option:hover,
+.elem-picker-option:active { background: var(--bg-surface); }
+.elem-picker-option.active {
+  background: var(--accent-dim);
+  color: #fff;
+}
+.elem-picker-option .option-unit { font-size: 10px; color: var(--text-muted); }
+.elem-picker-option.active .option-unit { color: rgba(255,255,255,0.65); }

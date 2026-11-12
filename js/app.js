@@ -46,13 +46,6 @@ function buildPanel() {
   const p = document.getElementById('side-panel');
   let html = `<div class="panel-header"><span>설정</span><button class="panel-close-btn" id="panel-close">&times;</button></div><div class="panel-body">`;
 
-  // 요소
-  html += '<div class="panel-section"><div class="panel-section-title">예측 요소</div><div class="panel-options">';
-  FORECAST_ELEMENTS.forEach(e => {
-    html += `<button class="option-btn elem-btn ${e.key===state.currentElement?'active':''}" data-elem="${e.key}">${e.name}<span class="option-unit">${e.unit}</span></button>`;
-  });
-  html += '</div></div>';
-
   // 속도
   html += `<div class="panel-section"><div class="panel-section-title">재생 속도</div><div class="speed-control">
     <input type="range" id="speed-slider" min="200" max="3000" step="100" value="${state.playSpeed}" class="speed-slider">
@@ -75,11 +68,6 @@ function buildPanel() {
   p.innerHTML = html;
 
   document.getElementById('panel-close').addEventListener('click', togglePanel);
-  p.querySelectorAll('.elem-btn').forEach(b => b.addEventListener('click', () => {
-    state.currentElement = b.dataset.elem;
-    p.querySelectorAll('.elem-btn').forEach(x => x.classList.remove('active'));
-    b.classList.add('active'); buildLegend(); updateDisplay();
-  }));
   document.getElementById('speed-slider').addEventListener('input', e => {
     state.playSpeed = +e.target.value;
     document.getElementById('speed-value').textContent = `${(state.playSpeed/1000).toFixed(1)}s`;
@@ -179,7 +167,8 @@ function buildStatScroll() {
   const wrap = document.getElementById('stat-scroll');
   const n = STAT_CRITERIA.length; // index.0=최솟값(아래) ... n-1=최댓값(위)
 
-  let html = `<div class="stat-scroll-badge" id="stat-scroll-badge"></div>`;
+  let html = `<div class="stat-scroll-main">`;
+  html += `<div class="stat-scroll-badge" id="stat-scroll-badge"></div>`;
   html += `<div class="stat-scroll-track-col" id="stat-scroll-track">
       <div class="stat-scroll-bg"></div>
       <div class="stat-scroll-fill" id="stat-scroll-fill"></div>
@@ -190,7 +179,20 @@ function buildStatScroll() {
   STAT_CRITERIA.forEach((s, i) => {
     html += `<div class="stat-scroll-row"><div class="stat-scroll-connector"></div><div class="stat-scroll-chip" data-idx="${i}">${s.name}</div></div>`;
   });
-  html += `</div>`;
+  html += `</div>`; // .stat-scroll-labels
+  html += `</div>`; // .stat-scroll-main
+
+  // 요소 선택기 (windy.com 스타일) — 스크롤바 하단에 현재 선택된 요소만 표시, 클릭 시에만 펼침
+  html += `<div class="elem-picker" id="elem-picker">
+      <button class="elem-picker-compact" id="elem-picker-compact" aria-label="예측 요소 변경">
+        <span class="elem-picker-name" id="elem-picker-name"></span>
+        <span class="elem-picker-chevron">▾</span>
+      </button>
+      <div class="elem-picker-list" id="elem-picker-list">
+        ${FORECAST_ELEMENTS.map(e => `<button class="elem-picker-option" data-elem="${e.key}">${e.name}<span class="option-unit">${e.unit}</span></button>`).join('')}
+      </div>
+    </div>`;
+
   wrap.innerHTML = html;
 
   const idxOf = (key) => STAT_CRITERIA.findIndex(s => s.key === key);
@@ -232,6 +234,36 @@ function buildStatScroll() {
   });
 
   applyIndex(idxOf(state.currentStat));
+
+  /* ── 요소 선택기 (windy.com 스타일) ── */
+  const elemCompact = document.getElementById('elem-picker-compact');
+  const elemList = document.getElementById('elem-picker-list');
+  const elemNameEl = document.getElementById('elem-picker-name');
+  const elemPicker = document.getElementById('elem-picker');
+
+  function setElemLabel() {
+    const e = FORECAST_ELEMENTS.find(x => x.key === state.currentElement);
+    elemNameEl.textContent = e.name;
+    elemList.querySelectorAll('.elem-picker-option').forEach(o => o.classList.toggle('active', o.dataset.elem === state.currentElement));
+  }
+  function closeElemList() { elemPicker.classList.remove('open'); }
+  function toggleElemList() { elemPicker.classList.toggle('open'); }
+
+  elemCompact.addEventListener('click', e => { e.stopPropagation(); toggleElemList(); });
+  elemList.querySelectorAll('.elem-picker-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      state.currentElement = opt.dataset.elem;
+      setElemLabel();
+      closeElemList();
+      buildLegend();
+      updateDisplay();
+    });
+  });
+  document.addEventListener('click', e => {
+    if (!elemPicker.contains(e.target)) closeElemList();
+  });
+
+  setElemLabel();
 }
 
 /* ═══ 통합 업데이트 ═══ */
