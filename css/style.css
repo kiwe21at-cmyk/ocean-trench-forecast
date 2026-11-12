@@ -583,3 +583,37 @@ html, body {
 .panel-section {
   animation: fadeIn 0.25s ease;
 }
+
+/* ═══════════════════════════════════════════
+   해구 격자 툴팁
+   ═══════════════════════════════════════════ */
+
+.zone-tip {
+  background: rgba(22, 27, 34, 0.94) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 8px !important;
+  color: #e6edf3 !important;
+  font-size: 12px !important;
+  padding: 8px 12px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+  line-height: 1.5;
+}
+.zone-tip::before { border-top-color: rgba(22,27,34,0.94) !important; }
+
+/* 통계 카드 */
+.stats-card {
+  background: var(--bg-surface);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+}
+.sc-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sc-row:last-child { border-bottom: none; }
+.sc-row span:first-child { color: var(--text-secondary); }
+.sc-row span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
