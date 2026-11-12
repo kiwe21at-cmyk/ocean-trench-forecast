@@ -20,14 +20,38 @@ export const FORECAST_ELEMENTS = [
   { key: 'vs', name: '시정', unit: 'm', min: 0, max: 20000, decimals: 0 }
 ];
 
+// 세로 스크롤바 순서: 아래(최솟값) → 위(최댓값)
 export const STAT_CRITERIA = [
-  { key: 'max', name: '최댓값', label: 'MAX' },
   { key: 'min', name: '최솟값', label: 'MIN' },
-  { key: 'mean', name: '평균값', label: 'AVG' },
   { key: 'p25', name: '25%', label: 'P25' },
-  { key: 'p50', name: '50%', label: 'P50' },
-  { key: 'p75', name: '75%', label: 'P75' }
+  { key: 'p50', name: '중앙값', label: 'P50' },
+  { key: 'mean', name: '평균값', label: 'AVG' },
+  { key: 'p75', name: '75%', label: 'P75' },
+  { key: 'max', name: '최댓값', label: 'MAX' }
 ];
+
+// 해구 1개당 예측 지점(앙상블 멤버) 수 — 고해상도 예측이 격자 하나에 여러 지점을 포함하는 상황을 모의
+export const ENSEMBLE_SIZE = 6;
+
+function percentile(sorted, p) {
+  const i = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(i), hi = Math.ceil(i);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+
+/** 해구 내 여러 예측 지점(samples) 중 선택한 기준으로 대표값 산출 */
+export function computeStat(samples, statKey) {
+  const s = [...samples].sort((a, b) => a - b);
+  switch (statKey) {
+    case 'min': return s[0];
+    case 'max': return s[s.length - 1];
+    case 'mean': return s.reduce((a, b) => a + b, 0) / s.length;
+    case 'p25': return percentile(s, 25);
+    case 'p50': return percentile(s, 50);
+    case 'p75': return percentile(s, 75);
+    default: return s[s.length - 1];
+  }
+}
 
 /* ─── seeded PRNG ─── */
 function seededRandom(seed) {
@@ -67,25 +91,44 @@ export function generateForecastData(baseUtc = '00') {
       const se = Math.max(0, sInt * Math.exp(-dist2 / 50));
       const lf = (z.lat - 25) / 20;
       const n = rng() * 0.3 - 0.15;
-      sd[z.id] = {
-        wh_sig: Math.max(0, Math.round((0.5 + lf * 1.5 + se * 3 + n * 1.5) * 10) / 10),
-        ws: Math.max(0, Math.round((3 + lf * 8 + se * 12 + n * 4) * 10) / 10),
-        wd: Math.round((220 + (z.lon - 125) * 5 + step * 8 + rng() * 30) % 360),
-        wvdr: Math.round((200 + (z.lon - 125) * 3 + step * 5 + rng() * 20) % 360),
-        wvprd_max: Math.max(2, Math.round((5 + lf * 4 + se * 4 + rng() * 2) * 10) / 10),
-        tw: Math.max(0, Math.round((25 - lf * 12 - se * 2 + Math.sin(t * Math.PI * 2) * 1.5 + n) * 10) / 10),
-        vs: Math.max(500, Math.round(15000 - (3 + lf * 8 + se * 12) * 400 + rng() * 2000))
+
+      // 해구 중심값(기존 로직) — 앙상블 멤버들의 중심
+      const center = {
+        wh_sig: Math.max(0, (0.5 + lf * 1.5 + se * 3 + n * 1.5)),
+        ws: Math.max(0, (3 + lf * 8 + se * 12 + n * 4)),
+        wd: (220 + (z.lon - 125) * 5 + step * 8) % 360,
+        wvdr: (200 + (z.lon - 125) * 3 + step * 5) % 360,
+        wvprd_max: Math.max(2, (5 + lf * 4 + se * 4)),
+        tw: Math.max(0, (25 - lf * 12 - se * 2 + Math.sin(t * Math.PI * 2) * 1.5 + n)),
+        vs: Math.max(500, 15000 - (3 + lf * 8 + se * 12) * 400)
       };
+
+      // 해구 1개 안의 고해상도 예측 지점(앙상블) ENSEMBLE_SIZE개를 중심값 주변 편차로 생성
+      const zd = {};
+      for (const key of Object.keys(center)) {
+        const isAngle = key === 'wd' || key === 'wvdr';
+        const spread = isAngle ? 15 : Math.abs(center[key]) * 0.12 + 0.3;
+        const samples = [];
+        for (let k = 0; k < ENSEMBLE_SIZE; k++) {
+          const jitter = (rng() - 0.5) * 2 * spread;
+          let v = center[key] + jitter;
+          if (isAngle) v = ((v % 360) + 360) % 360;
+          else v = Math.max(0, v);
+          samples.push(Math.round(v * 10) / 10);
+        }
+        zd[key] = samples;
+      }
+      sd[z.id] = zd;
     }
     zoneValues.push(sd);
   }
 
-  // 전체 통계 (각 스텝)
+  // 전체 통계 (각 스텝) — 해구별 대표값(앙상블 평균) 기준 전역 분포
   const globalStats = [];
   for (let step = 0; step < STEPS; step++) {
     const st = {};
     for (const e of FORECAST_ELEMENTS) {
-      const v = ZONES.map(z => zoneValues[step][z.id][e.key]).sort((a, b) => a - b);
+      const v = ZONES.map(z => computeStat(zoneValues[step][z.id][e.key], 'mean')).sort((a, b) => a - b);
       const n = v.length, sum = v.reduce((a, b) => a + b, 0);
       const pct = p => { const i = p / 100 * (n - 1), lo = i | 0; return lo === Math.ceil(i) ? v[lo] : v[lo] + (v[lo + 1] - v[lo]) * (i - lo); };
       st[e.key] = { min: v[0], max: v[n - 1], mean: Math.round(sum / n * 10) / 10, p25: Math.round(pct(25) * 10) / 10, p50: Math.round(pct(50) * 10) / 10, p75: Math.round(pct(75) * 10) / 10 };

@@ -617,3 +617,124 @@ html, body {
 .sc-row:last-child { border-bottom: none; }
 .sc-row span:first-child { color: var(--text-secondary); }
 .sc-row span:last-child { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ═══════════════════════════════════════════
+   표출 기준 세로 스크롤바 (지도 위 오른쪽 플로팅)
+   전체 해구에 동시 적용되는 전역 컨트롤
+   ═══════════════════════════════════════════ */
+
+#stat-scroll {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  z-index: 850;
+  pointer-events: none; /* 자식 요소에서 개별적으로 활성화 */
+}
+
+#stat-scroll > * { pointer-events: auto; }
+
+.stat-scroll-badge {
+  position: absolute;
+  top: -34px;
+  right: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent-dim);
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
+.stat-scroll-track-col {
+  position: relative;
+  width: 10px;
+  height: min(44vh, 320px);
+}
+
+.stat-scroll-bg {
+  position: absolute;
+  left: 0; top: 0;
+  width: 10px; height: 100%;
+  background: rgba(22, 27, 34, 0.85);
+  border: 1.5px solid var(--border-light);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.stat-scroll-fill {
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 10px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-dim));
+  border-bottom-left-radius: 999px;
+  border-bottom-right-radius: 999px;
+  transition: height 0.15s ease;
+  pointer-events: none;
+}
+
+.stat-scroll-thumb {
+  position: absolute;
+  left: 50%;
+  width: 22px; height: 22px;
+  background: var(--bg-secondary);
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, 50%);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  cursor: grab;
+  transition: bottom 0.15s ease;
+  z-index: 2;
+}
+.stat-scroll-thumb:active { cursor: grabbing; }
+
+.stat-scroll-labels {
+  display: flex;
+  flex-direction: column-reverse; /* 아래=최솟값, 위=최댓값 순서로 표시 */
+  justify-content: space-between;
+  height: min(44vh, 320px);
+  margin-left: 10px;
+}
+
+.stat-scroll-row {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+.stat-scroll-connector {
+  width: 10px;
+  height: 1px;
+  background: var(--border-light);
+  flex-shrink: 0;
+}
+
+.stat-scroll-chip {
+  background: rgba(22, 27, 34, 0.85);
+  border: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s, color 0.15s, transform 0.1s, border-color 0.15s;
+}
+.stat-scroll-chip.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #fff;
+  transform: scale(1.06);
+}
+
+@media (min-width: 768px) {
+  .stat-scroll-track-col, .stat-scroll-labels { height: min(50vh, 400px); }
+}

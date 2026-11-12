@@ -2,7 +2,7 @@
  * 지도 모듈 – 전체 1,331개 해구 격자 시각화
  * Canvas 렌더러 (대량 폴리곤 성능 최적화)
  */
-import { FORECAST_ELEMENTS, GRID } from './data.js';
+import { FORECAST_ELEMENTS, GRID, computeStat } from './data.js';
 
 let map = null;
 let gridGroup = null;
@@ -68,21 +68,22 @@ export function initMap(containerId, zones) {
 }
 
 /* ═══ 격자 색상 업데이트 ═══ */
-export function updateGrid(zoneValues, stepIndex, elemKey) {
+export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
   const sd = zoneValues[stepIndex];
   if (!sd) return;
   const elem = FORECAST_ELEMENTS.find(e => e.key === elemKey);
   const ids = Object.keys(sd);
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
-    const val = sd[id][elemKey];
+    const samples = sd[id][elemKey];
+    const val = computeStat(samples, statKey);
     const rect = zoneLayers[id];
     if (!rect) continue;
     const color = valueToColor(val, elemKey);
     rect.setStyle({ fillColor: color, fillOpacity: 0.55, color: color, weight: 0.5 });
     const disp = elem.decimals > 0 ? val.toFixed(elem.decimals) : Math.round(val);
     rect.setTooltipContent(
-      `<b>해구 ${id}</b><br>${elem.name}: ${disp}${elem.unit}<br><span style="color:#8b949e">${rect._zlat}°N ${rect._zlon}°E</span>`
+      `<b>해구 ${id}</b><br>${elem.name}: ${disp}${elem.unit}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
     );
   }
 }
