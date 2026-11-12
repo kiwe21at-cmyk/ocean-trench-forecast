@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="description" content="기상청 해구별 예측정보 시각화 - 유의파고, 풍속, 파향 등 해양기상 예측 데이터">
+
+  <title>해구별 예측정보</title>
+
+  <!-- PWA Manifest (향후 앱 전환용) -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- 스타일 -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 헤더 -->
+    <header id="header"></header>
+
+    <!-- 지도 -->
+    <div id="map-container"></div>
+
+    <!-- 범례 -->
+    <div id="legend"></div>
+
+    <!-- 하단 플레이바 -->
+    <footer id="playbar"></footer>
+
+    <!-- 우측 슬라이드 패널 오버레이 -->
+    <div id="panel-overlay"></div>
+
+    <!-- 우측 슬라이드 패널 -->
+    <aside id="side-panel"></aside>
+  </div>
+
+  <!-- 앱 모듈 -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
