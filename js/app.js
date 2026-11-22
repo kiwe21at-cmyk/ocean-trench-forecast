@@ -117,12 +117,9 @@ function buildPlaybar() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="16,4 8,12 16,20"/></svg>
       </button>
       <div class="dial-drum" id="dial-drum">
+        <div class="dial-ticks" id="dial-ticks"></div>
         <div class="dial-items" id="dial-items">
-          <div class="dial-item" data-offset="-2"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
-          <div class="dial-item" data-offset="-1"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
-          <div class="dial-item" data-offset="0"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
-          <div class="dial-item" data-offset="1"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
-          <div class="dial-item" data-offset="2"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
+          ${steps.map((st, i) => `<div class="dial-item" data-i="${i}"><span class="dial-kst">${st.kstLabel}</span><span class="dial-hlabel">${st.label}</span></div>`).join('')}
         </div>
         <div class="dial-fade-l"></div>
         <div class="dial-fade-r"></div>
@@ -150,13 +147,13 @@ function buildPlaybar() {
   drum.addEventListener('touchstart', e => { dragX = e.touches[0].clientX; dragBase = state.currentStep; }, {passive:true});
   window.addEventListener('mousemove', e => {
     if (dragX === null) return;
-    const delta = Math.round((dragX - e.clientX) / 50);
+    const delta = Math.round((dragX - e.clientX) / DIAL_PITCH);
     state.currentStep = Math.max(0, Math.min(steps.length - 1, dragBase + delta));
     updateDisplay();
   });
   window.addEventListener('touchmove', e => {
     if (dragX === null) return;
-    const delta = Math.round((dragX - e.touches[0].clientX) / 50);
+    const delta = Math.round((dragX - e.touches[0].clientX) / DIAL_PITCH);
     state.currentStep = Math.max(0, Math.min(steps.length - 1, dragBase + delta));
     updateDisplay();
   }, {passive:true});
@@ -164,24 +161,17 @@ function buildPlaybar() {
   window.addEventListener('touchend', () => { dragX = null; });
 }
 
+/* 다이얼: 모든 스텝을 한 줄로 두고, 현재 스텝과의 차이(offset)만 바꿔 CSS transition으로 슬라이드.
+   눈금(틱)도 같은 간격(DIAL_PITCH)만큼 함께 이동해서 "시간이 움직인다"는 느낌을 준다. */
+const DIAL_PITCH = 92;
 function updateDial() {
-  const steps = state.data.timeSteps;
   const s = state.currentStep;
   document.querySelectorAll('#dial-items .dial-item').forEach(el => {
-    const d = +el.dataset.offset;
-    const i = s + d;
-    const kst = el.querySelector('.dial-kst');
-    const lbl = el.querySelector('.dial-hlabel');
-    if (i >= 0 && i < steps.length) {
-      kst.textContent = steps[i].kstLabel;
-      lbl.textContent = steps[i].label;
-      el.classList.remove('dial-empty');
-    } else {
-      kst.textContent = '';
-      lbl.textContent = '';
-      el.classList.add('dial-empty');
-    }
+    const d = +el.dataset.i - s;
+    el.dataset.offset = Math.max(-3, Math.min(3, d));
   });
+  const ticks = document.getElementById('dial-ticks');
+  if (ticks) ticks.style.transform = `translateX(${-s * DIAL_PITCH}px)`;
 }
 
 function startPlay() {

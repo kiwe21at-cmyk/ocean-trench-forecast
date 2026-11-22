@@ -527,10 +527,9 @@ html, body {
   flex-direction: column;
   align-items: center;
   pointer-events: none;
-  transition: opacity 0.12s ease;
+  transition: transform 0.3s cubic-bezier(0.22, 0.8, 0.3, 1), opacity 0.3s ease;
   line-height: 1.25;
 }
-.dial-item.dial-empty { opacity: 0 !important; }
 
 /* 현재 스텝 (중앙) */
 .dial-item[data-offset="0"] {
@@ -561,6 +560,31 @@ html, body {
   transform: translate(calc(-50% + 170px), -50%) perspective(280px) rotateY(-32deg) scale(0.54);
   opacity: 0.2;
   z-index: 1;
+}
+
+/* ±3 이상 — 보이지 않는 대기 위치 (슬라이드 진입/퇴장용) */
+.dial-item[data-offset="-3"] {
+  transform: translate(calc(-50% - 240px), -50%) perspective(280px) rotateY(40deg) scale(0.4);
+  opacity: 0;
+}
+.dial-item[data-offset="3"] {
+  transform: translate(calc(-50% + 240px), -50%) perspective(280px) rotateY(-40deg) scale(0.4);
+  opacity: 0;
+}
+
+/* 눈금(틱): 스텝 간격 92px마다 큰 눈금, 23px마다 작은 눈금. 현재 스텝에 따라 함께 이동 */
+.dial-ticks {
+  position: absolute;
+  left: calc(50% - 368px);
+  width: 1840px;
+  bottom: 5px;
+  height: 9px;
+  pointer-events: none;
+  z-index: 1;
+  transition: transform 0.3s cubic-bezier(0.22, 0.8, 0.3, 1);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 1.5px, transparent 1.5px 92px) left bottom / 100% 9px no-repeat,
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.28) 0 1px, transparent 1px 23px) left bottom / 100% 5px no-repeat;
 }
 
 /* 텍스트 */
@@ -875,7 +899,7 @@ html, body {
   .dial-item[data-offset="-1"] { transform: translate(calc(-50% - 74px), -50%) perspective(280px) rotateY(18deg) scale(0.74); }
   .dial-item[data-offset="1"]  { transform: translate(calc(-50% + 74px), -50%) perspective(280px) rotateY(-18deg) scale(0.74); }
   .dial-item[data-offset="-2"],
-  .dial-item[data-offset="2"] { display: none; }
+  .dial-item[data-offset="2"] { opacity: 0 !important; }
   #playbar { padding-left: 10px; padding-right: 10px; gap: 8px; }
 }
 
