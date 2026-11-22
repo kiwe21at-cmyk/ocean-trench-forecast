@@ -13,12 +13,31 @@ export const GRID = 0.5;
 export const FORECAST_ELEMENTS = [
   { key: 'wh_sig', name: '유의파고', unit: 'm', min: 0, max: 8, decimals: 1 },
   { key: 'ws', name: '풍속', unit: 'm/s', min: 0, max: 30, decimals: 1 },
-  { key: 'wd', name: '풍향', unit: '°', min: 0, max: 360, decimals: 0 },
-  { key: 'wvdr', name: '파향', unit: '°', min: 0, max: 360, decimals: 0 },
+  { key: 'wd', name: '풍향', unit: '°', min: 0, max: 360, decimals: 0, hidden: true },
+  { key: 'wvdr', name: '파향', unit: '°', min: 0, max: 360, decimals: 0, hidden: true },
   { key: 'wvprd_max', name: '최대파주기', unit: 's', min: 0, max: 20, decimals: 1 },
   { key: 'tw', name: '수온', unit: '℃', min: 0, max: 30, decimals: 1 },
   { key: 'vs', name: '시정', unit: 'm', min: 0, max: 20000, decimals: 0 }
 ];
+
+// 요소 선택기에 노출되는 요소 (풍향·파향은 화살표로 표출하므로 제외)
+export const SELECTABLE_ELEMENTS = FORECAST_ELEMENTS.filter(e => !e.hidden);
+
+// 요소별 함께 표출할 방향 요소 (화살표): 풍속→풍향, 유의파고→파향
+export const DIRECTION_OF = {
+  ws: { key: 'wd', name: '풍향' },
+  wh_sig: { key: 'wvdr', name: '파향' }
+};
+
+/** 각도 샘플의 원형 평균 (0~360°) */
+export function circularMean(samples) {
+  let x = 0, y = 0;
+  for (const d of samples) { const r = d * Math.PI / 180; x += Math.cos(r); y += Math.sin(r); }
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+const COMPASS = ['북','북북동','북동','동북동','동','동남동','남동','남남동','남','남남서','남서','서남서','서','서북서','북서','북북서'];
+export function compassName(deg) { return COMPASS[Math.round(deg / 22.5) % 16]; }
 
 // 세로 스크롤바 순서: 아래(최솟값) → 위(최댓값)
 export const STAT_CRITERIA = [

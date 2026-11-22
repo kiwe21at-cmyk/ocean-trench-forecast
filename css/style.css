@@ -878,3 +878,25 @@ html, body {
   .dial-item[data-offset="2"] { display: none; }
   #playbar { padding-left: 10px; padding-right: 10px; gap: 8px; }
 }
+
+/* ═══════════════════════════════════════════
+   풍향·파향 화살표 (풍속/유의파고 선택 시 격자 위에 표시)
+   ═══════════════════════════════════════════ */
+
+.dir-arrow { background: none !important; border: none !important; pointer-events: none; }
+.dir-arrow-inner {
+  position: absolute;
+  left: 0; top: 0;
+  width: var(--arrow-size, 16px);
+  height: var(--arrow-size, 16px);
+  transform: translate(-50%, -50%);
+}
+.dir-arrow-inner svg {
+  width: 100%; height: 100%;
+  fill: rgba(255,255,255,0.92);
+  stroke: rgba(0,0,0,0.65);
+  stroke-width: 1;
+  paint-order: stroke;
+  overflow: visible;
+}
+.arrows-hidden .dir-arrow { display: none; }

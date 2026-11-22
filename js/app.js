@@ -2,7 +2,7 @@
  * 앱 메인 모듈 - SPA 컨트롤러
  * 전체 1,331개 해구 격자 + 우측 패널 + 하단 플레이바
  */
-import { ZONES, FORECAST_ELEMENTS, STAT_CRITERIA, generateForecastData } from './data.js';
+import { ZONES, FORECAST_ELEMENTS, SELECTABLE_ELEMENTS, STAT_CRITERIA, generateForecastData } from './data.js';
 import { initMap, updateGrid, createLegend } from './map.js';
 
 const state = {
@@ -39,7 +39,7 @@ function buildHeader() {
         <span class="elem-picker-chevron">▾</span>
       </button>
       <div class="elem-picker-list" id="elem-picker-list">
-        ${FORECAST_ELEMENTS.map(e => `<button class="elem-picker-option" data-elem="${e.key}">${e.name}<span class="option-unit">${e.unit}</span></button>`).join('')}
+        ${SELECTABLE_ELEMENTS.map(e => `<button class="elem-picker-option" data-elem="${e.key}">${e.name}<span class="option-unit">${e.unit}</span></button>`).join('')}
       </div>
     </div>
     <button class="panel-toggle-btn" id="panel-toggle" aria-label="설정">

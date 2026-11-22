@@ -2,11 +2,14 @@
  * 지도 모듈 – 전체 1,331개 해구 격자 시각화
  * Canvas 렌더러 (대량 폴리곤 성능 최적화)
  */
-import { FORECAST_ELEMENTS, GRID, computeStat } from './data.js';
+import { FORECAST_ELEMENTS, GRID, computeStat, circularMean, compassName, DIRECTION_OF } from './data.js';
 
 let map = null;
 let gridGroup = null;
 let zoneLayers = {};
+let arrowLayers = {};   // zoneId → L.marker (방향 화살표)
+let arrowGroup = null;
+const ARROW_SVG = '<svg viewBox="-10 -10 20 20"><path d="M0,-8 L5.5,2 L1.6,0.8 L1.6,8 L-1.6,8 L-1.6,0.8 L-5.5,2 Z"/></svg>';
 const H = GRID / 2;
 
 /* ═══ 색상 스케일 ═══ */
@@ -62,9 +65,28 @@ export function initMap(containerId, zones) {
     rect.bindTooltip('', { sticky: true, className: 'zone-tip', direction: 'top', offset: [0, -8] });
     gridGroup.addLayer(rect);
     zoneLayers[z.id] = rect;
+
+    const arrow = L.marker([z.lat, z.lon], {
+      icon: L.divIcon({ className: 'dir-arrow', html: `<div class="dir-arrow-inner">${ARROW_SVG}</div>`, iconSize: [0, 0] }),
+      interactive: false, keyboard: false
+    });
+    arrowLayers[z.id] = arrow;
   });
 
+  arrowGroup = L.layerGroup().addTo(map);
+  map.on('zoomend', resizeArrows);
+  resizeArrows();
+
   return map;
+}
+
+/* 줌에 맞춘 화살표 크기 (격자 한 칸 폭 기준, 너무 작으면 숨김) */
+function resizeArrows() {
+  const cellPx = 256 * Math.pow(2, map.getZoom()) * GRID / 360;
+  const size = Math.min(22, Math.round(cellPx * 0.8));
+  const el = map.getContainer();
+  el.style.setProperty('--arrow-size', size + 'px');
+  el.classList.toggle('arrows-hidden', cellPx < 9);
 }
 
 /* ═══ 격자 색상 업데이트 ═══ */
@@ -73,6 +95,10 @@ export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
   if (!sd) return;
   const elem = FORECAST_ELEMENTS.find(e => e.key === elemKey);
   const ids = Object.keys(sd);
+  const dirDef = DIRECTION_OF[elemKey];
+  // 화살표 레이어는 방향 요소가 바뀔 때만 추가/제거 (스텝 이동 시 DOM 재생성 방지)
+  if (!dirDef) arrowGroup.clearLayers();
+  else if (arrowGroup.getLayers().length === 0) ids.forEach(id => arrowLayers[id] && arrowGroup.addLayer(arrowLayers[id]));
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
     const samples = sd[id][elemKey];
@@ -82,8 +108,17 @@ export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
     const color = valueToColor(val, elemKey);
     rect.setStyle({ fillColor: color, fillOpacity: 0.55, color: color, weight: 0.5 });
     const disp = elem.decimals > 0 ? val.toFixed(elem.decimals) : Math.round(val);
+    let dirLine = '';
+    if (dirDef) {
+      const deg = circularMean(sd[id][dirDef.key]);
+      dirLine = `<br>${dirDef.name}: ${compassName(deg)} (${Math.round(deg)}°)`;
+      const arrow = arrowLayers[id];
+      const inner = arrow && arrow.getElement() && arrow.getElement().firstChild;
+      // 기상 관례상 방향은 "불어오는/오는 방향"이므로 진행 방향(+180°)으로 화살표 표시
+      if (inner) inner.style.transform = `translate(-50%,-50%) rotate(${deg + 180}deg)`;
+    }
     rect.setTooltipContent(
-      `<b>해구 ${id}</b><br>${elem.name}: ${disp}${elem.unit}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
+      `<b>해구 ${id}</b><br>${elem.name}: ${disp}${elem.unit}${dirLine}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
     );
   }
 }
