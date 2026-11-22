@@ -205,67 +205,25 @@ function buildLegend() {
     <div class="legend-labels">${lg.stops.map((s,i) => `<span style="left:${(i/(lg.stops.length-1))*100}%">${s.label}</span>`).join('')}</div>`;
 }
 
-/* ═══ 표출 기준 세로 스크롤바 (지도 위 오른쪽 플로팅, 전체 해구 동시 적용) ═══ */
+/* ═══ 표출 기준 가로 칩 줄 (지도 위 상단 플로팅, 전체 해구 동시 적용) ═══ */
 function buildStatScroll() {
   const wrap = document.getElementById('stat-scroll');
-  const n = STAT_CRITERIA.length; // index.0=최솟값(아래) ... n-1=최댓값(위)
+  wrap.innerHTML = `<div class="stat-chips" role="tablist" aria-label="표출 기준">${
+    STAT_CRITERIA.map(s => `<button class="stat-chip" role="tab" data-key="${s.key}">${s.name}</button>`).join('')
+  }</div>`;
 
-  let html = `<div class="stat-scroll-main">`;
-  html += `<div class="stat-scroll-badge" id="stat-scroll-badge"></div>`;
-  html += `<div class="stat-scroll-track-col" id="stat-scroll-track">
-      <div class="stat-scroll-bg"></div>
-      <div class="stat-scroll-fill" id="stat-scroll-fill"></div>
-      <div class="stat-scroll-thumb" id="stat-scroll-thumb"></div>
-    </div>`;
-  html += `<div class="stat-scroll-labels">`;
-  // 라벨은 위(최댓값)에서 아래(최솟값) 순서로 DOM에 쌓이되, flex-direction:column-reverse로 시각 순서를 맞춤
-  STAT_CRITERIA.forEach((s, i) => {
-    html += `<div class="stat-scroll-row"><div class="stat-scroll-connector"></div><div class="stat-scroll-chip" data-idx="${i}">${s.name}</div></div>`;
-  });
-  html += `</div>`; // .stat-scroll-labels
-  html += `</div>`; // .stat-scroll-main
-
-  wrap.innerHTML = html;
-
-  const idxOf = (key) => STAT_CRITERIA.findIndex(s => s.key === key);
-  const applyIndex = (idx) => {
-    idx = Math.max(0, Math.min(n - 1, idx));
-    state.currentStat = STAT_CRITERIA[idx].key;
-    const track = document.getElementById('stat-scroll-track');
-    const trackH = track.clientHeight;
-    const step = trackH / (n - 1);
-    const bottomPx = idx * step;
-    document.getElementById('stat-scroll-thumb').style.bottom = bottomPx + 'px';
-    document.getElementById('stat-scroll-fill').style.height = bottomPx + 'px';
-    document.getElementById('stat-scroll-badge').textContent = STAT_CRITERIA[idx].name;
-    wrap.querySelectorAll('.stat-scroll-chip').forEach(c => c.classList.toggle('active', +c.dataset.idx === idx));
+  const chips = wrap.querySelectorAll('.stat-chip');
+  const applyStat = (key) => {
+    state.currentStat = key;
+    chips.forEach(c => {
+      const on = c.dataset.key === key;
+      c.classList.toggle('active', on);
+      c.setAttribute('aria-selected', on);
+    });
     updateDisplay();
   };
-
-  let dragging = false;
-  function pointerToIndex(clientY) {
-    const track = document.getElementById('stat-scroll-track');
-    const rect = track.getBoundingClientRect();
-    let fromBottom = rect.bottom - clientY;
-    fromBottom = Math.max(0, Math.min(rect.height, fromBottom));
-    return Math.round((fromBottom / rect.height) * (n - 1));
-  }
-  const thumb = () => document.getElementById('stat-scroll-thumb');
-  thumb().addEventListener('mousedown', () => dragging = true);
-  thumb().addEventListener('touchstart', () => dragging = true, { passive: true });
-  window.addEventListener('mouseup', () => dragging = false);
-  window.addEventListener('touchend', () => dragging = false);
-  window.addEventListener('mousemove', e => { if (dragging) applyIndex(pointerToIndex(e.clientY)); });
-  window.addEventListener('touchmove', e => { if (dragging) applyIndex(pointerToIndex(e.touches[0].clientY)); }, { passive: true });
-  document.getElementById('stat-scroll-track').addEventListener('click', e => {
-    if (e.target === thumb()) return;
-    applyIndex(pointerToIndex(e.clientY));
-  });
-  wrap.querySelectorAll('.stat-scroll-chip').forEach(chip => {
-    chip.addEventListener('click', () => applyIndex(+chip.dataset.idx));
-  });
-
-  applyIndex(idxOf(state.currentStat));
+  chips.forEach(c => c.addEventListener('click', () => applyStat(c.dataset.key)));
+  applyStat(state.currentStat);
 
   /* ── 요소 선택기 (windy.com 스타일) ── */
   const elemCompact = document.getElementById('elem-picker-compact');
