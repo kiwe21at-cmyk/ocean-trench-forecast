@@ -12,6 +12,7 @@ let arrowGroup = null;
 let favSet = new Set();      // 내 해구
 let selectedId = null;       // 상세 시트가 열린 해구
 let onZoneClick = null;
+const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; // 터치 기기는 툴팁 대신 상세 시트 사용
 let peakMode = false;        // true: 예측 기간 내 최대값으로 표출
 export function setZoneClickHandler(fn) { onZoneClick = fn; }
 export function setHighlight({ favs, selected }) { if (favs) favSet = favs; if (selected !== undefined) selectedId = selected; }
@@ -72,9 +73,9 @@ export function initMap(containerId, zones) {
       bubblingMouseEvents: false
     });
     rect._zid = z.id; rect._zlat = z.lat; rect._zlon = z.lon;
-    rect.bindTooltip('', { sticky: true, className: 'zone-tip', direction: 'top', offset: [0, -8] });
+    if (!COARSE) rect.bindTooltip('', { sticky: true, className: 'zone-tip', direction: 'top', offset: [0, -8] });
     gridGroup.addLayer(rect);
-    rect.on('click', () => onZoneClick && onZoneClick(String(z.id)));
+    rect.on('click', () => { rect.closeTooltip(); onZoneClick && onZoneClick(String(z.id)); });
     zoneLayers[z.id] = rect;
 
     const arrow = L.marker([z.lat, z.lon], {
@@ -142,7 +143,7 @@ export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
       // 기상 관례상 방향은 "불어오는/오는 방향"이므로 진행 방향(+180°)으로 화살표 표시
       if (inner) inner.style.transform = `translate(-50%,-50%) rotate(${deg + 180}deg)`;
     }
-    rect.setTooltipContent(
+    if (rect.getTooltip()) rect.setTooltipContent(
       `<b>해구 ${id}${isFav ? ' ★' : ''}</b><br>${elem.name}${peakMode ? '(기간 내 최악)' : ''}: ${disp}${elem.unit}${dirLine}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
     );
   }
@@ -162,6 +163,16 @@ export function createLegend(elemKey) {
 }
 
 export function getMap() { return map; }
+
+/** 상세 시트에 가려지지 않도록 선택한 해구가 보이는 영역 중앙에 오게 지도 이동 */
+export function revealZone(id, topInset, bottomInset) {
+  const rect = zoneLayers[id];
+  if (!rect) return;
+  const p = map.latLngToContainerPoint(rect.getBounds().getCenter());
+  const lo = topInset + 16, hi = map.getSize().y - bottomInset - 16;
+  if (hi <= lo + 40) return;
+  if (p.y > hi || p.y < lo) map.panBy([0, p.y - (lo + hi) / 2], { animate: true });
+}
 
 /** 해구 id 목록이 한 화면에 보이도록 이동 */
 export function focusZones(ids) {

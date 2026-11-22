@@ -3,7 +3,7 @@
  * 전체 1,331개 해구 격자 + 우측 패널 + 하단 플레이바
  */
 import { ZONES, FORECAST_ELEMENTS, SELECTABLE_ELEMENTS, STAT_CRITERIA, DIRECTION_OF, FORECAST_HOURS, STEP_HOURS, THRESHOLDS, riskLevel, computeStat, circularMean, compassName, generateForecastData } from './data.js';
-import { initMap, updateGrid, createLegend, setZoneClickHandler, setHighlight, setPeakMode, focusZones } from './map.js';
+import { initMap, updateGrid, createLegend, setZoneClickHandler, setHighlight, setPeakMode, focusZones, revealZone } from './map.js';
 
 const state = {
   data: null, currentStep: 0, currentElement: 'wh_sig',
@@ -330,7 +330,10 @@ function openZone(id) {
   state.selectedZone = id;
   setHighlight({ selected: id });
   updateDisplay();
-  document.getElementById('zone-sheet').classList.add('open');
+  const sheet = document.getElementById('zone-sheet');
+  sheet.classList.add('open');
+  // 시트가 가리는 높이만큼 비워 두고 선택한 해구가 보이도록 지도 이동 (상단 칩 줄 높이 ≈ 70px)
+  requestAnimationFrame(() => revealZone(id, 70, sheet.offsetHeight));
 }
 function closeZone() {
   state.selectedZone = null;
