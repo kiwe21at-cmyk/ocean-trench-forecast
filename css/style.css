@@ -72,6 +72,10 @@ html, body {
   margin-top: 1px;
 }
 
+.header-left { min-width: 0; flex: 1; }
+.header-title, .header-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: 8px; }
+
 .panel-toggle-btn {
   width: 40px;
   height: 40px;
@@ -830,12 +834,11 @@ html, body {
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 700;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-radius: 999px;
   white-space: nowrap;
   cursor: pointer;
-  backdrop-filter: blur(4px);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   transition: border-color 0.15s, background 0.15s;
 }
 .elem-picker-compact:active { background: var(--bg-surface); }
@@ -858,8 +861,8 @@ html, body {
 
 .elem-picker-list {
   position: absolute;
-  right: calc(100% + 8px);
-  bottom: 0;
+  right: 0;
+  top: calc(100% + 8px);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -870,14 +873,15 @@ html, body {
   box-shadow: var(--shadow);
   backdrop-filter: blur(8px);
   min-width: 140px;
+  z-index: 1100;
   opacity: 0;
-  transform: translateX(6px);
+  transform: translateY(-6px);
   pointer-events: none;
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .elem-picker.open .elem-picker-list {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateY(0);
   pointer-events: auto;
 }
 

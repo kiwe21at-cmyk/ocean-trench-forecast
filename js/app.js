@@ -32,12 +32,23 @@ function buildHeader() {
       <div class="header-title">해구별 예측정보</div>
       <div class="header-sub">기준: ${ts.kstLabel} (KST) | 해구 ${ZONES.length}개 | 0.5° 격자</div>
     </div>
+    <div class="header-right">
+    <div class="elem-picker" id="elem-picker">
+      <button class="elem-picker-compact" id="elem-picker-compact" aria-label="예측 요소 변경">
+        <span class="elem-picker-name" id="elem-picker-name"></span>
+        <span class="elem-picker-chevron">▾</span>
+      </button>
+      <div class="elem-picker-list" id="elem-picker-list">
+        ${FORECAST_ELEMENTS.map(e => `<button class="elem-picker-option" data-elem="${e.key}">${e.name}<span class="option-unit">${e.unit}</span></button>`).join('')}
+      </div>
+    </div>
     <button class="panel-toggle-btn" id="panel-toggle" aria-label="설정">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
         <circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="18" r="2" fill="currentColor"/>
       </svg>
-    </button>`;
+    </button>
+    </div>`;
   document.getElementById('panel-toggle').addEventListener('click', togglePanel);
 }
 
@@ -213,17 +224,6 @@ function buildStatScroll() {
   });
   html += `</div>`; // .stat-scroll-labels
   html += `</div>`; // .stat-scroll-main
-
-  // 요소 선택기 (windy.com 스타일) — 스크롤바 하단에 현재 선택된 요소만 표시, 클릭 시에만 펼침
-  html += `<div class="elem-picker" id="elem-picker">
-      <button class="elem-picker-compact" id="elem-picker-compact" aria-label="예측 요소 변경">
-        <span class="elem-picker-name" id="elem-picker-name"></span>
-        <span class="elem-picker-chevron">▾</span>
-      </button>
-      <div class="elem-picker-list" id="elem-picker-list">
-        ${FORECAST_ELEMENTS.map(e => `<button class="elem-picker-option" data-elem="${e.key}">${e.name}<span class="option-unit">${e.unit}</span></button>`).join('')}
-      </div>
-    </div>`;
 
   wrap.innerHTML = html;
 
