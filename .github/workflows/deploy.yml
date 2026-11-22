@@ -4,6 +4,9 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+  schedule:
+    # 3시간마다 최신 예측을 받아 재배포 (Open-Meteo 무료 한도: 1회 약 870호출 × 하루 8회)
+    - cron: '10 */3 * * *'
 
 permissions:
   contents: read
@@ -23,6 +26,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch forecast data (Open-Meteo)
+        run: node scripts/fetch-forecast.mjs data.json
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

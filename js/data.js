@@ -80,6 +80,7 @@ function percentile(sorted, p) {
 
 /** 해구 내 여러 예측 지점(samples) 중 선택한 기준으로 대표값 산출 */
 export function computeStat(samples, statKey) {
+  if (!samples || !samples.length) return NaN;
   const s = [...samples].sort((a, b) => a - b);
   switch (statKey) {
     case 'min': return s[0];
@@ -111,7 +112,7 @@ export function generateForecastData(baseUtc = '00') {
     return {
       index: i, hours: i * STEP_HOURS, utc: t.toISOString(),
       label: `+${String(i * STEP_HOURS).padStart(2, '0')}h`,
-      kstLabel: `${kst.getMonth() + 1}/${kst.getDate()} ${String(kst.getHours()).padStart(2, '0')}시`
+      kstLabel: `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}시`
     };
   });
 
@@ -162,18 +163,76 @@ export function generateForecastData(baseUtc = '00') {
     zoneValues.push(sd);
   }
 
-  // 전체 통계 (각 스텝) — 해구별 대표값(앙상블 평균) 기준 전역 분포
-  const globalStats = [];
-  for (let step = 0; step < STEPS; step++) {
-    const st = {};
-    for (const e of FORECAST_ELEMENTS) {
-      const v = ZONES.map(z => computeStat(zoneValues[step][z.id][e.key], 'mean')).sort((a, b) => a - b);
-      const n = v.length, sum = v.reduce((a, b) => a + b, 0);
-      const pct = p => { const i = p / 100 * (n - 1), lo = i | 0; return lo === Math.ceil(i) ? v[lo] : v[lo] + (v[lo + 1] - v[lo]) * (i - lo); };
-      st[e.key] = { min: v[0], max: v[n - 1], mean: Math.round(sum / n * 10) / 10, p25: Math.round(pct(25) * 10) / 10, p50: Math.round(pct(50) * 10) / 10, p75: Math.round(pct(75) * 10) / 10 };
-    }
-    globalStats.push(st);
-  }
+  const globalStats = buildGlobalStats(zoneValues, ZONES);
 
-  return { timeSteps, zoneValues, globalStats, zones: ZONES };
+  return { timeSteps, zoneValues, globalStats, zones: ZONES, mock: true };
+}
+
+/* ─── 전체 통계: 해구별 대표값 기준 전역 분포 (값이 없는 해구는 제외) ─── */
+export function buildGlobalStats(zoneValues, zones) {
+  return zoneValues.map(sd => {
+    const st = {};
+    for (const e of SELECTABLE_ELEMENTS) {
+      const v = zones.map(z => computeStat(sd[z.id][e.key], 'mean')).filter(Number.isFinite).sort((a, b) => a - b);
+      const n = v.length;
+      if (!n) { st[e.key] = null; continue; }
+      const sum = v.reduce((a, b) => a + b, 0);
+      const pct = p => { const i = p / 100 * (n - 1), lo = i | 0; return lo === Math.ceil(i) ? v[lo] : v[lo] + (v[lo + 1] - v[lo]) * (i - lo); };
+      const r = x => Math.round(x * 10) / 10;
+      st[e.key] = { min: r(v[0]), max: r(v[n - 1]), mean: r(sum / n), p25: r(pct(25)), p50: r(pct(50)), p75: r(pct(75)) };
+    }
+    return st;
+  });
+}
+
+/* ─── 실데이터(data.json, Open-Meteo) → 앱 데이터 구조 ─── */
+export function buildDataFromForecast(json) {
+  const nowSec = Date.now() / 1000;
+  // 현재 시각 이하의 마지막 정시부터 표출 (데이터가 최대 3시간 묵었을 수 있음)
+  let start = 0;
+  json.times.forEach((t, i) => { if (t <= nowSec) start = i; });
+  const count = Math.min(FORECAST_HOURS / STEP_HOURS + 1, json.times.length - start);
+
+  const timeSteps = Array.from({ length: count }, (_, i) => {
+    const t = json.times[start + i];
+    const kst = new Date((t + 9 * 3600) * 1000);   // UTC getter 로 KST 계산 (실행 환경 시간대와 무관)
+    return {
+      index: i, hours: i * STEP_HOURS, utc: new Date(t * 1000).toISOString(),
+      label: `+${String(i * STEP_HOURS).padStart(2, '0')}h`,
+      kstLabel: `${kst.getUTCMonth() + 1}/${kst.getUTCDate()} ${String(kst.getUTCHours()).padStart(2, '0')}시`
+    };
+  });
+
+  const zoneValues = timeSteps.map((_, i) => {
+    const sd = {};
+    for (const z of ZONES) {
+      const rec = json.zones[z.id] || {};
+      const zd = {};
+      for (const e of FORECAST_ELEMENTS) {
+        const v = rec[e.key] ? rec[e.key][start + i] : null;
+        zd[e.key] = v == null ? [] : [v];     // 값 없음 = 빈 배열
+      }
+      sd[z.id] = zd;
+    }
+    return sd;
+  });
+
+  return {
+    timeSteps, zoneValues, globalStats: buildGlobalStats(zoneValues, ZONES), zones: ZONES,
+    mock: false, generatedAt: json.generatedAt, source: json.source
+  };
+}
+
+/** data.json 을 읽어 실데이터 구성. 없으면(로컬 개발 등) 모의 데이터로 대체하고 mock:true 로 표시 */
+export async function loadForecastData() {
+  try {
+    const res = await fetch('data.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = buildDataFromForecast(await res.json());
+    if (data.timeSteps.length < 2) throw new Error('예측 시간 부족');
+    return data;
+  } catch (e) {
+    console.warn('data.json 로드 실패 → 모의 데이터 사용:', e);
+    return generateForecastData('00');
+  }
 }

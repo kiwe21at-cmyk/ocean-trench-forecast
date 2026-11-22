@@ -752,7 +752,7 @@ html, body {
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
-  padding: 8px 12px;
+  padding: 8px 16px;
   min-height: 36px;
   border-radius: 999px;
   white-space: nowrap;
@@ -928,8 +928,6 @@ html, body {
 /* ═══════════════════════════════════════════
    표출 기준 칩: 기간 내 최악 토글
    ═══════════════════════════════════════════ */
-.stat-chip-sep { flex-shrink: 0; width: 1px; margin: 6px 2px; background: var(--border-light); }
-.stat-chip-peak.active { background: #b62324; }
 
 /* ═══════════════════════════════════════════
    해구 상세 시트 (플레이바 위에서 올라옴)

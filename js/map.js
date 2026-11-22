@@ -51,7 +51,7 @@ export function initMap(containerId, zones) {
   map = L.map(containerId, {
     center: [35, 130], zoom: 5, minZoom: 3, maxZoom: 10,
     zoomControl: false, attributionControl: true,
-    preferCanvas: true, renderer: L.canvas({ padding: 0.5 })
+    zoomSnap: 0.25, preferCanvas: true, renderer: L.canvas({ padding: 0.5 })
   });
 
   // 무료 공개 해양/해안선 지도 (Esri World Ocean Base, API 키 불필요 · 출처 표기 필수)
@@ -85,6 +85,8 @@ export function initMap(containerId, zones) {
     arrowLayers[z.id] = arrow;
   });
 
+  if (zones.length) map.fitBounds(L.latLngBounds(zones.map(z => [z.lat, z.lon])).pad(0.05), { padding: [8, 8] });
+
   arrowGroup = L.layerGroup().addTo(map);
   map.on('zoomend', resizeArrows);
   resizeArrows();
@@ -111,40 +113,47 @@ export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
   // 화살표 레이어는 방향 요소가 바뀔 때만 추가/제거 (스텝 이동 시 DOM 재생성 방지)
   if (!dirDef) arrowGroup.clearLayers();
   else if (arrowGroup.getLayers().length === 0) ids.forEach(id => arrowLayers[id] && arrowGroup.addLayer(arrowLayers[id]));
+  const worstLow = THRESHOLDS[elemKey] && THRESHOLDS[elemKey].dir === 'down';
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
+    const rect = zoneLayers[id];
+    if (!rect) continue;
     const samples = sd[id][elemKey];
     let val = computeStat(samples, statKey);
     if (peakMode) {
-      // 예측 기간 내 최악값: 시정은 최솟값, 그 외는 최댓값
-      const worstLow = THRESHOLDS[elemKey] && THRESHOLDS[elemKey].dir === 'down';
+      // 예측 기간 내 최악값: 시정은 최솟값, 그 외는 최댓값 (값 없는 시각은 제외)
+      val = NaN;
       for (let k = 0; k < zoneValues.length; k++) {
         const v = computeStat(zoneValues[k][id][elemKey], statKey);
-        val = worstLow ? Math.min(val, v) : Math.max(val, v);
+        if (!Number.isFinite(v)) continue;
+        val = !Number.isFinite(val) ? v : (worstLow ? Math.min(val, v) : Math.max(val, v));
       }
     }
-    const rect = zoneLayers[id];
-    if (!rect) continue;
-    const color = valueToColor(val, elemKey);
+    const hasVal = Number.isFinite(val);
     const isFav = favSet.has(id), isSel = selectedId === id;
+    const color = hasVal ? valueToColor(val, elemKey) : '#6e7681';
+    const fillOpacity = hasVal ? (isSel ? 0.7 : isFav ? 0.6 : 0.55) : 0.18;   // 값 없는 해구는 옅은 회색
     rect.setStyle(isSel
-      ? { fillColor: color, fillOpacity: 0.7, color: '#ffffff', weight: 2.5 }
+      ? { fillColor: color, fillOpacity, color: '#ffffff', weight: 2.5 }
       : isFav
-        ? { fillColor: color, fillOpacity: 0.6, color: '#ffd33d', weight: 2 }
-        : { fillColor: color, fillOpacity: 0.55, color: color, weight: 0.5 });
+        ? { fillColor: color, fillOpacity, color: '#ffd33d', weight: 2 }
+        : { fillColor: color, fillOpacity, color: color, weight: 0.5 });
     if (isSel || isFav) rect.bringToFront();
-    const disp = elem.decimals > 0 ? val.toFixed(elem.decimals) : Math.round(val);
+    const disp = hasVal ? (elem.decimals > 0 ? val.toFixed(elem.decimals) : Math.round(val)) + elem.unit : '데이터 없음';
     let dirLine = '';
     if (dirDef) {
-      const deg = circularMean(sd[id][dirDef.key]);
-      dirLine = `<br>${dirDef.name}: ${compassName(deg)} (${Math.round(deg)}°)`;
+      const dirSamples = sd[id][dirDef.key];
       const arrow = arrowLayers[id];
       const inner = arrow && arrow.getElement() && arrow.getElement().firstChild;
-      // 기상 관례상 방향은 "불어오는/오는 방향"이므로 진행 방향(+180°)으로 화살표 표시
-      if (inner) inner.style.transform = `translate(-50%,-50%) rotate(${deg + 180}deg)`;
+      if (dirSamples.length) {
+        const deg = circularMean(dirSamples);
+        dirLine = `<br>${dirDef.name}: ${compassName(deg)} (${Math.round(deg)}°)`;
+        // 기상 관례상 방향은 "불어오는/오는 방향"이므로 진행 방향(+180°)으로 화살표 표시
+        if (inner) { inner.style.display = ''; inner.style.transform = `translate(-50%,-50%) rotate(${deg + 180}deg)`; }
+      } else if (inner) inner.style.display = 'none';
     }
     if (rect.getTooltip()) rect.setTooltipContent(
-      `<b>해구 ${id}${isFav ? ' ★' : ''}</b><br>${elem.name}${peakMode ? '(기간 내 최악)' : ''}: ${disp}${elem.unit}${dirLine}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
+      `<b>해구 ${id}${isFav ? ' ★' : ''}</b><br>${elem.name}${peakMode ? '(기간 내 최악)' : ''}: ${disp}${dirLine}<br><span style="color:#8b949e">${rect._zlat}°N ${rect._zlon}°E</span>`
     );
   }
 }
