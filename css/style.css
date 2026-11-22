@@ -905,3 +905,49 @@ html, body {
 }
 .elem-picker-option .option-unit { font-size: 10px; color: var(--text-muted); }
 .elem-picker-option.active .option-unit { color: rgba(255,255,255,0.65); }
+
+/* ═══════════════════════════════════════════
+   모바일 개선 (≤ 767px) — PC 레이아웃에는 영향 없음
+   ═══════════════════════════════════════════ */
+
+@media (max-width: 767px) {
+  html, body {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* 주소창 변화에 대응하는 실제 화면 높이 */
+  #app { height: 100dvh; }
+
+  /* 노치/상태바 안전영역 */
+  #header {
+    height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  #side-panel { padding-top: env(safe-area-inset-top, 0px); }
+
+  /* 범례가 우측 스크롤바와 겹치지 않도록 */
+  #legend {
+    min-width: 160px;
+    max-width: calc(100% - 100px);
+  }
+
+  /* 터치 영역 확대 */
+  .option-btn { min-height: 44px; padding: 10px 14px; }
+  .elem-picker-option { min-height: 44px; padding: 11px 12px; }
+  .stat-scroll-thumb { width: 26px; height: 26px; }
+  .stat-scroll-chip { padding: 7px 10px; }
+  .panel-close-btn { width: 44px; height: 44px; }
+}
+
+/* 좁은 폰 (≤ 360px) */
+@media (max-width: 360px) {
+  .dial-item[data-offset="-1"] { transform: translate(calc(-50% - 74px), -50%) perspective(280px) rotateY(18deg) scale(0.74); }
+  .dial-item[data-offset="1"]  { transform: translate(calc(-50% + 74px), -50%) perspective(280px) rotateY(-18deg) scale(0.74); }
+  .dial-item[data-offset="-2"],
+  .dial-item[data-offset="2"] { display: none; }
+  #playbar { padding-left: 10px; padding-right: 10px; gap: 8px; }
+}
