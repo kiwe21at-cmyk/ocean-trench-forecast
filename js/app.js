@@ -2,12 +2,12 @@
  * 앱 메인 모듈 - SPA 컨트롤러
  * 전체 1,331개 해구 격자 + 우측 패널 + 하단 플레이바
  */
-import { ZONES, FORECAST_ELEMENTS, SELECTABLE_ELEMENTS, STAT_CRITERIA, generateForecastData } from './data.js';
-import { initMap, updateGrid, createLegend } from './map.js';
+import { ZONES, FORECAST_ELEMENTS, SELECTABLE_ELEMENTS, STAT_CRITERIA, DIRECTION_OF, FORECAST_HOURS, STEP_HOURS, THRESHOLDS, riskLevel, computeStat, circularMean, compassName, generateForecastData } from './data.js';
+import { initMap, updateGrid, createLegend, setZoneClickHandler, setHighlight, setPeakMode, focusZones } from './map.js';
 
 const state = {
   data: null, currentStep: 0, currentElement: 'wh_sig',
-  currentStat: 'mean', isPlaying: false, playInterval: null,
+  currentStat: 'max', peak: false, selectedZone: null, favs: loadFavs(), isPlaying: false, playInterval: null,
   playSpeed: 1000, panelOpen: false
 };
 
@@ -17,8 +17,11 @@ export function initApp() {
   setTimeout(() => {
     state.data = generateForecastData('00');
     initMap('map-container', state.data.zones);
+    setZoneClickHandler(openZone);
+    setHighlight({ favs: state.favs });
     buildHeader(); buildPanel(); buildPlaybar(); buildLegend(); buildStatScroll();
     updateDisplay();
+    if (state.favs.size) focusZones([...state.favs]);
     document.getElementById('loading').style.display = 'none';
   }, 50);
 }
@@ -57,6 +60,9 @@ function buildPanel() {
   const p = document.getElementById('side-panel');
   let html = `<div class="panel-header"><span>설정</span><button class="panel-close-btn" id="panel-close">&times;</button></div><div class="panel-body">`;
 
+  // 내 해구
+  html += `<div class="panel-section"><div class="panel-section-title">내 해구 ★</div><div id="fav-list" class="panel-options"></div></div>`;
+
   // 속도
   html += `<div class="panel-section"><div class="panel-section-title">재생 속도</div><div class="speed-control">
     <input type="range" id="speed-slider" min="200" max="3000" step="100" value="${state.playSpeed}" class="speed-slider">
@@ -69,7 +75,7 @@ function buildPanel() {
     <div class="info-item">격자: 0.5° × 0.5° (약 50km)</div>
     <div class="info-item">해구: ${ZONES.length}개</div>
     <div class="info-item">발표: 1일 2회 (00/12 UTC)</div>
-    <div class="info-item">예측: 3시간 간격 72시간</div>
+    <div class="info-item">예측: ${STEP_HOURS}시간 간격 최대 ${FORECAST_HOURS}시간</div>
     <div class="info-note">※ 모의 데이터로 실제 예보와 다릅니다</div>
   </div>`;
 
@@ -78,6 +84,7 @@ function buildPanel() {
   html += '</div>';
   p.innerHTML = html;
 
+  renderFavList();
   document.getElementById('panel-close').addEventListener('click', togglePanel);
   document.getElementById('speed-slider').addEventListener('input', e => {
     state.playSpeed = +e.target.value;
@@ -210,9 +217,17 @@ function buildStatScroll() {
   const wrap = document.getElementById('stat-scroll');
   wrap.innerHTML = `<div class="stat-chips" role="tablist" aria-label="표출 기준">${
     STAT_CRITERIA.map(s => `<button class="stat-chip" role="tab" data-key="${s.key}">${s.name}</button>`).join('')
-  }</div>`;
+  }<span class="stat-chip-sep"></span><button class="stat-chip stat-chip-peak" id="peak-toggle" aria-pressed="false">${FORECAST_HOURS}h 최악</button></div>`;
 
-  const chips = wrap.querySelectorAll('.stat-chip');
+  const peakBtn = document.getElementById('peak-toggle');
+  peakBtn.addEventListener('click', () => {
+    state.peak = !state.peak;
+    peakBtn.classList.toggle('active', state.peak);
+    peakBtn.setAttribute('aria-pressed', state.peak);
+    updateDisplay();
+  });
+
+  const chips = wrap.querySelectorAll('.stat-chip[data-key]');
   const applyStat = (key) => {
     state.currentStat = key;
     chips.forEach(c => {
@@ -261,7 +276,9 @@ function updateDisplay() {
   const { zoneValues, globalStats, timeSteps } = state.data;
   const step = timeSteps[state.currentStep];
 
+  setPeakMode(state.peak);
   updateGrid(zoneValues, state.currentStep, state.currentElement, state.currentStat);
+  renderSheet();
 
   updateDial();
 
@@ -279,6 +296,106 @@ function updateDisplay() {
       <div class="sc-row"><span>P75</span><span>${st.p75}${elem.unit}</span></div>
       <div class="sc-row"><span>최댓값</span><span>${st.max}${elem.unit}</span></div>`;
   }
+}
+
+/* ═══ 내 해구 (즐겨찾기, localStorage) ═══ */
+function loadFavs() {
+  try { return new Set(JSON.parse(localStorage.getItem('otf-favs') || '[]').map(String)); }
+  catch { return new Set(); }
+}
+function saveFavs() {
+  try { localStorage.setItem('otf-favs', JSON.stringify([...state.favs])); } catch {}
+}
+function toggleFav(id) {
+  state.favs.has(id) ? state.favs.delete(id) : state.favs.add(id);
+  saveFavs();
+  setHighlight({ favs: state.favs });
+  renderFavList();
+  updateDisplay();
+}
+function renderFavList() {
+  const el = document.getElementById('fav-list');
+  if (!el) return;
+  if (!state.favs.size) { el.innerHTML = '<div class="info-item">지도에서 해구를 눌러 ★로 추가하세요</div>'; return; }
+  el.innerHTML = [...state.favs].map(id => `<button class="option-btn" data-id="${id}">★ ${id}</button>`).join('') +
+    `<button class="option-btn" id="fav-fit">모두 보기</button>`;
+  el.querySelectorAll('[data-id]').forEach(b => b.addEventListener('click', () => {
+    togglePanel(); focusZones([b.dataset.id]); openZone(b.dataset.id);
+  }));
+  document.getElementById('fav-fit').addEventListener('click', () => { togglePanel(); focusZones([...state.favs]); });
+}
+
+/* ═══ 해구 상세 시트 (12시간 추이) ═══ */
+function openZone(id) {
+  state.selectedZone = id;
+  setHighlight({ selected: id });
+  updateDisplay();
+  document.getElementById('zone-sheet').classList.add('open');
+}
+function closeZone() {
+  state.selectedZone = null;
+  setHighlight({ selected: null });
+  document.getElementById('zone-sheet').classList.remove('open');
+  updateDisplay();
+}
+
+function sparkline(vals, cur, key, lo, hi) {
+  const n = vals.length, W = 100, H = 26;
+  const span = (hi - lo) || 1;
+  const pts = vals.map((v, i) => [ (i / (n - 1)) * W, H - 2 - ((v - lo) / span) * (H - 4) ]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const [cx, cy] = pts[cur];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}" class="spark-line"/></svg>` +
+    `<span class="spark-dot risk-${riskLevel(key, vals[cur])}" style="left:${cx}%;top:${(cy / H * 100).toFixed(1)}%"></span>`;
+}
+
+function renderSheet() {
+  const el = document.getElementById('zone-sheet');
+  const id = state.selectedZone;
+  if (!el) return;
+  if (!id) { el.innerHTML = ''; return; }
+  const { zoneValues, timeSteps, zones } = state.data;
+  const z = zones.find(x => String(x.id) === id);
+  const cur = state.currentStep;
+  const stat = state.currentStat;
+  const val = (step, key) => computeStat(zoneValues[step][id][key], stat);
+  const dirAt = (step, key) => circularMean(zoneValues[step][id][key]);
+  const fav = state.favs.has(id);
+
+  const rows = SELECTABLE_ELEMENTS.map(e => {
+    const series = timeSteps.map((_, i) => val(i, e.key));
+    const now = series[cur];
+    const worstLow = THRESHOLDS[e.key] && THRESHOLDS[e.key].dir === 'down';
+    const worst = worstLow ? Math.min(...series) : Math.max(...series);
+    const fmt = v => (e.decimals > 0 ? v.toFixed(e.decimals) : Math.round(v)) + e.unit;
+    const dd = DIRECTION_OF[e.key];
+    let dirHtml = '';
+    if (dd) {
+      const deg = dirAt(cur, dd.key);
+      dirHtml = `<span class="zs-dir"><svg viewBox="-10 -10 20 20" style="transform:rotate(${deg + 180}deg)"><path d="M0,-8 L5.5,2 L1.6,0.8 L1.6,8 L-1.6,8 L-1.6,0.8 L-5.5,2 Z"/></svg>${dd.name} ${compassName(deg)} ${Math.round(deg)}°</span>`;
+    }
+    const lo = Math.min(...series), hi = Math.max(...series);
+    return `<div class="zs-row">
+      <div class="zs-name">${e.name}${dirHtml}</div>
+      <div class="zs-spark">${sparkline(series, cur, e.key, lo, hi)}</div>
+      <div class="zs-now risk-${riskLevel(e.key, now)}">${fmt(now)}</div>
+      <div class="zs-worst risk-${riskLevel(e.key, worst)}">${fmt(worst)}</div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="zs-head">
+      <div><div class="zs-title">해구 ${id}</div><div class="zs-sub">${z.lat}°N ${z.lon}°E · ${timeSteps[cur].kstLabel} 기준 (${timeSteps[cur].label})</div></div>
+      <div class="zs-actions">
+        <button class="zs-fav ${fav ? 'on' : ''}" id="zs-fav" aria-label="내 해구 ${fav ? '해제' : '추가'}">${fav ? '★' : '☆'}</button>
+        <button class="panel-close-btn" id="zs-close" aria-label="닫기">&times;</button>
+      </div>
+    </div>
+    <div class="zs-cols"><span></span><span>${FORECAST_HOURS}시간 추이</span><span>현재</span><span>최악</span></div>
+    <div class="zs-body">${rows}</div>
+    <div class="zs-foot">표출 기준: ${STAT_CRITERIA.find(s => s.key === stat).name} · 점은 현재 시각 · 색: 주의(노랑)/위험(빨강)</div>`;
+  document.getElementById('zs-close').addEventListener('click', closeZone);
+  document.getElementById('zs-fav').addEventListener('click', () => toggleFav(id));
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

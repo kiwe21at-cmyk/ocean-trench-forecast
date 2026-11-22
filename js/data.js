@@ -2,13 +2,33 @@
  * 기상청 해구(海區) 데이터 모듈
  * - 전체 대해구 1,331개 격자 (0.5° × 0.5°, zones.js 로드)
  * - 예측 요소: 유의파고, 풍속, 풍향, 파향, 최대파주기, 수온, 시정
- * - 모의 예측: 3시간 간격 72시간 (25 스텝)
+ * - 모의 예측: 1시간 간격 12시간 (13 스텝) — 특정 해역 사용자를 위한 단기 예측
  */
 
 import { ZONES } from './zones.js';
 export { ZONES };
 
 export const GRID = 0.5;
+
+// 단기 예측 설정: 1시간 간격, 최대 12시간
+export const STEP_HOURS = 1;
+export const FORECAST_HOURS = 12;
+
+// 위험 기준 (단순화한 값: 실제 특보 기준은 기상청 공지 확인 필요)
+// dir: 'up' = 값이 클수록 위험, 'down' = 값이 작을수록 위험
+export const THRESHOLDS = {
+  wh_sig: { dir: 'up', caution: 2, warning: 3 },
+  ws: { dir: 'up', caution: 10, warning: 14 },
+  vs: { dir: 'down', caution: 3000, warning: 1000 }
+};
+
+/** 'ok' | 'caution' | 'warning' */
+export function riskLevel(key, v) {
+  const t = THRESHOLDS[key];
+  if (!t) return 'ok';
+  if (t.dir === 'up') return v >= t.warning ? 'warning' : v >= t.caution ? 'caution' : 'ok';
+  return v <= t.warning ? 'warning' : v <= t.caution ? 'caution' : 'ok';
+}
 
 export const FORECAST_ELEMENTS = [
   { key: 'wh_sig', name: '유의파고', unit: 'm', min: 0, max: 8, decimals: 1 },
@@ -82,15 +102,15 @@ function seededRandom(seed) {
 export function generateForecastData(baseUtc = '00') {
   const now = new Date();
   const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), parseInt(baseUtc)));
-  const STEPS = 25;
+  const STEPS = FORECAST_HOURS / STEP_HOURS + 1;
   const rng = seededRandom(20261113 + parseInt(baseUtc));
 
   const timeSteps = Array.from({ length: STEPS }, (_, i) => {
-    const t = new Date(base.getTime() + i * 3 * 3600000);
+    const t = new Date(base.getTime() + i * STEP_HOURS * 3600000);
     const kst = new Date(t.getTime() + 9 * 3600000);
     return {
-      index: i, hours: i * 3, utc: t.toISOString(),
-      label: `+${String(i * 3).padStart(2, '0')}h`,
+      index: i, hours: i * STEP_HOURS, utc: t.toISOString(),
+      label: `+${String(i * STEP_HOURS).padStart(2, '0')}h`,
       kstLabel: `${kst.getMonth() + 1}/${kst.getDate()} ${String(kst.getHours()).padStart(2, '0')}시`
     };
   });
@@ -102,8 +122,8 @@ export function generateForecastData(baseUtc = '00') {
   const zoneValues = [];
   for (let step = 0; step < STEPS; step++) {
     const sd = {};
-    const t = step / STEPS;
-    const sLat = sLat0 + t * 8, sLon = sLon0 - t * 3;
+    const t = step / (STEPS - 1);
+    const sLat = sLat0 + t * 2, sLon = sLon0 - t * 1;
     const sInt = Math.sin(t * Math.PI) * 1.5;
     for (const z of ZONES) {
       const dist2 = (z.lat - sLat) ** 2 + (z.lon - sLon) ** 2;
@@ -115,8 +135,8 @@ export function generateForecastData(baseUtc = '00') {
       const center = {
         wh_sig: Math.max(0, (0.5 + lf * 1.5 + se * 3 + n * 1.5)),
         ws: Math.max(0, (3 + lf * 8 + se * 12 + n * 4)),
-        wd: (220 + (z.lon - 125) * 5 + step * 8) % 360,
-        wvdr: (200 + (z.lon - 125) * 3 + step * 5) % 360,
+        wd: (220 + (z.lon - 125) * 5 + step * STEP_HOURS * 2.7) % 360,
+        wvdr: (200 + (z.lon - 125) * 3 + step * STEP_HOURS * 1.7) % 360,
         wvprd_max: Math.max(2, (5 + lf * 4 + se * 4)),
         tw: Math.max(0, (25 - lf * 12 - se * 2 + Math.sin(t * Math.PI * 2) * 1.5 + n)),
         vs: Math.max(500, 15000 - (3 + lf * 8 + se * 12) * 400)

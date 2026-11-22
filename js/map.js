@@ -2,13 +2,20 @@
  * 지도 모듈 – 전체 1,331개 해구 격자 시각화
  * Canvas 렌더러 (대량 폴리곤 성능 최적화)
  */
-import { FORECAST_ELEMENTS, GRID, computeStat, circularMean, compassName, DIRECTION_OF } from './data.js';
+import { FORECAST_ELEMENTS, GRID, computeStat, circularMean, compassName, DIRECTION_OF, THRESHOLDS } from './data.js';
 
 let map = null;
 let gridGroup = null;
 let zoneLayers = {};
 let arrowLayers = {};   // zoneId → L.marker (방향 화살표)
 let arrowGroup = null;
+let favSet = new Set();      // 내 해구
+let selectedId = null;       // 상세 시트가 열린 해구
+let onZoneClick = null;
+let peakMode = false;        // true: 예측 기간 내 최대값으로 표출
+export function setZoneClickHandler(fn) { onZoneClick = fn; }
+export function setHighlight({ favs, selected }) { if (favs) favSet = favs; if (selected !== undefined) selectedId = selected; }
+export function setPeakMode(v) { peakMode = v; }
 const ARROW_SVG = '<svg viewBox="-10 -10 20 20"><path d="M0,-8 L5.5,2 L1.6,0.8 L1.6,8 L-1.6,8 L-1.6,0.8 L-5.5,2 Z"/></svg>';
 const H = GRID / 2;
 
@@ -42,15 +49,18 @@ export function valueToColor(v, k) {
 export function initMap(containerId, zones) {
   map = L.map(containerId, {
     center: [35, 130], zoom: 5, minZoom: 3, maxZoom: 10,
-    zoomControl: false, attributionControl: false,
+    zoomControl: false, attributionControl: true,
     preferCanvas: true, renderer: L.canvas({ padding: 0.5 })
   });
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, subdomains: 'abcd'
+  // 무료 공개 해양/해안선 지도 (Esri World Ocean Base, API 키 불필요 · 출처 표기 필수)
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 10, maxNativeZoom: 10,
+    attribution: '&copy; Esri, GEBCO, NOAA, HERE, Geonames'
   }).addTo(map);
+  map.attributionControl.setPrefix(false);
 
-  L.control.zoom({ position: 'topleft' }).addTo(map);
+  L.control.zoom({ position: 'bottomright' }).addTo(map);
 
   gridGroup = L.layerGroup().addTo(map);
 
@@ -64,6 +74,7 @@ export function initMap(containerId, zones) {
     rect._zid = z.id; rect._zlat = z.lat; rect._zlon = z.lon;
     rect.bindTooltip('', { sticky: true, className: 'zone-tip', direction: 'top', offset: [0, -8] });
     gridGroup.addLayer(rect);
+    rect.on('click', () => onZoneClick && onZoneClick(String(z.id)));
     zoneLayers[z.id] = rect;
 
     const arrow = L.marker([z.lat, z.lon], {
@@ -102,11 +113,25 @@ export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
   for (let i = 0; i < ids.length; i++) {
     const id = ids[i];
     const samples = sd[id][elemKey];
-    const val = computeStat(samples, statKey);
+    let val = computeStat(samples, statKey);
+    if (peakMode) {
+      // 예측 기간 내 최악값: 시정은 최솟값, 그 외는 최댓값
+      const worstLow = THRESHOLDS[elemKey] && THRESHOLDS[elemKey].dir === 'down';
+      for (let k = 0; k < zoneValues.length; k++) {
+        const v = computeStat(zoneValues[k][id][elemKey], statKey);
+        val = worstLow ? Math.min(val, v) : Math.max(val, v);
+      }
+    }
     const rect = zoneLayers[id];
     if (!rect) continue;
     const color = valueToColor(val, elemKey);
-    rect.setStyle({ fillColor: color, fillOpacity: 0.55, color: color, weight: 0.5 });
+    const isFav = favSet.has(id), isSel = selectedId === id;
+    rect.setStyle(isSel
+      ? { fillColor: color, fillOpacity: 0.7, color: '#ffffff', weight: 2.5 }
+      : isFav
+        ? { fillColor: color, fillOpacity: 0.6, color: '#ffd33d', weight: 2 }
+        : { fillColor: color, fillOpacity: 0.55, color: color, weight: 0.5 });
+    if (isSel || isFav) rect.bringToFront();
     const disp = elem.decimals > 0 ? val.toFixed(elem.decimals) : Math.round(val);
     let dirLine = '';
     if (dirDef) {
@@ -118,7 +143,7 @@ export function updateGrid(zoneValues, stepIndex, elemKey, statKey = 'mean') {
       if (inner) inner.style.transform = `translate(-50%,-50%) rotate(${deg + 180}deg)`;
     }
     rect.setTooltipContent(
-      `<b>해구 ${id}</b><br>${elem.name}: ${disp}${elem.unit}${dirLine}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
+      `<b>해구 ${id}${isFav ? ' ★' : ''}</b><br>${elem.name}${peakMode ? '(기간 내 최악)' : ''}: ${disp}${elem.unit}${dirLine}<br><span style="color:#8b949e">예측 지점 ${samples.length}개 중 대표값 · ${rect._zlat}°N ${rect._zlon}°E</span>`
     );
   }
 }
@@ -137,3 +162,13 @@ export function createLegend(elemKey) {
 }
 
 export function getMap() { return map; }
+
+/** 해구 id 목록이 한 화면에 보이도록 이동 */
+export function focusZones(ids) {
+  const pts = ids.map(id => zoneLayers[id]).filter(Boolean).map(r => r.getBounds());
+  if (!pts.length) return;
+  let b = pts[0];
+  pts.slice(1).forEach(x => { b = b.extend(x); });
+  map.fitBounds(b, { padding: [60, 60], maxZoom: 8 });
+}
+
