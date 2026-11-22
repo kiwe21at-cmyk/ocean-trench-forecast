@@ -101,6 +101,9 @@ html, body {
   z-index: 1;
 }
 
+/* 타일 로딩 전/실패 시 Leaflet 기본 회색(#ddd) 대신 다크 배경 */
+.leaflet-container { background: var(--bg-primary); }
+
 /* 해구 라벨 */
 .zone-label {
   background: none !important;
