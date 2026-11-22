@@ -82,7 +82,7 @@ function togglePanel() {
   document.getElementById('panel-overlay').classList.toggle('visible', state.panelOpen);
 }
 
-/* ═══ 플레이바 ═══ */
+/* ═══ 플레이바 (다이얼 드럼) ═══ */
 function buildPlaybar() {
   const pb = document.getElementById('playbar');
   const steps = state.data.timeSteps;
@@ -93,45 +93,77 @@ function buildPlaybar() {
         <svg id="pause-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none">
           <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
       </button>
-      <button class="step-btn" id="prev-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="16,4 8,12 16,20"/></svg></button>
-      <button class="step-btn" id="next-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="8,4 16,12 8,20"/></svg></button>
     </div>
-    <div class="playbar-timeline">
-      <div class="timeline-track" id="timeline-track">
-        <div class="timeline-progress" id="timeline-progress"></div>
-        <div class="timeline-thumb" id="timeline-thumb"></div>
-        ${steps.map((_, i) => `<div class="timeline-tick" style="left:${(i/(steps.length-1))*100}%"></div>`).join('')}
+    <div class="dial-wrapper">
+      <button class="dial-arrow" id="prev-btn" aria-label="이전">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="16,4 8,12 16,20"/></svg>
+      </button>
+      <div class="dial-drum" id="dial-drum">
+        <div class="dial-items" id="dial-items">
+          <div class="dial-item" data-offset="-2"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
+          <div class="dial-item" data-offset="-1"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
+          <div class="dial-item" data-offset="0"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
+          <div class="dial-item" data-offset="1"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
+          <div class="dial-item" data-offset="2"><span class="dial-kst"></span><span class="dial-hlabel"></span></div>
+        </div>
+        <div class="dial-fade-l"></div>
+        <div class="dial-fade-r"></div>
+        <div class="dial-center-line"></div>
       </div>
-      <div class="timeline-labels">
-        ${steps.filter((_,i)=>i%4===0).map((s,idx) => {
-          const i=idx*4;
-          return `<span class="timeline-label" style="left:${(i/(steps.length-1))*100}%">${s.label}</span>`;
-        }).join('')}
-      </div>
-    </div>
-    <div class="playbar-info">
-      <span class="time-display" id="time-display">${steps[0].kstLabel}</span>
-      <span class="step-display" id="step-display">${steps[0].label}</span>
+      <button class="dial-arrow" id="next-btn" aria-label="다음">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="8,4 16,12 8,20"/></svg>
+      </button>
     </div>`;
 
-  document.getElementById('play-btn').addEventListener('click', () => state.isPlaying ? stopPlay() : startPlay());
-  document.getElementById('prev-btn').addEventListener('click', () => { state.currentStep = Math.max(0, state.currentStep-1); updateDisplay(); });
-  document.getElementById('next-btn').addEventListener('click', () => { state.currentStep = Math.min(steps.length-1, state.currentStep+1); updateDisplay(); });
+  updateDial();
 
-  const track = document.getElementById('timeline-track');
-  let drag = false;
-  function onTrack(e) {
-    const r = track.getBoundingClientRect();
-    const x = e.touches ? e.touches[0].clientX : e.clientX;
-    state.currentStep = Math.round(Math.max(0, Math.min(1, (x-r.left)/r.width)) * (steps.length-1));
+  document.getElementById('play-btn').addEventListener('click', () => state.isPlaying ? stopPlay() : startPlay());
+  document.getElementById('prev-btn').addEventListener('click', () => {
+    state.currentStep = Math.max(0, state.currentStep - 1); updateDisplay();
+  });
+  document.getElementById('next-btn').addEventListener('click', () => {
+    state.currentStep = Math.min(steps.length - 1, state.currentStep + 1); updateDisplay();
+  });
+
+  // 드럼 드래그 (좌→우: 이전, 우→좌: 다음)
+  const drum = document.getElementById('dial-drum');
+  let dragX = null, dragBase = null;
+  drum.addEventListener('mousedown', e => { dragX = e.clientX; dragBase = state.currentStep; });
+  drum.addEventListener('touchstart', e => { dragX = e.touches[0].clientX; dragBase = state.currentStep; }, {passive:true});
+  window.addEventListener('mousemove', e => {
+    if (dragX === null) return;
+    const delta = Math.round((dragX - e.clientX) / 50);
+    state.currentStep = Math.max(0, Math.min(steps.length - 1, dragBase + delta));
     updateDisplay();
-  }
-  track.addEventListener('mousedown', e => { drag=true; onTrack(e); });
-  track.addEventListener('touchstart', e => { drag=true; onTrack(e); }, {passive:true});
-  window.addEventListener('mousemove', e => { if(drag) onTrack(e); });
-  window.addEventListener('touchmove', e => { if(drag) onTrack(e); }, {passive:true});
-  window.addEventListener('mouseup', () => drag=false);
-  window.addEventListener('touchend', () => drag=false);
+  });
+  window.addEventListener('touchmove', e => {
+    if (dragX === null) return;
+    const delta = Math.round((dragX - e.touches[0].clientX) / 50);
+    state.currentStep = Math.max(0, Math.min(steps.length - 1, dragBase + delta));
+    updateDisplay();
+  }, {passive:true});
+  window.addEventListener('mouseup', () => { dragX = null; });
+  window.addEventListener('touchend', () => { dragX = null; });
+}
+
+function updateDial() {
+  const steps = state.data.timeSteps;
+  const s = state.currentStep;
+  document.querySelectorAll('#dial-items .dial-item').forEach(el => {
+    const d = +el.dataset.offset;
+    const i = s + d;
+    const kst = el.querySelector('.dial-kst');
+    const lbl = el.querySelector('.dial-hlabel');
+    if (i >= 0 && i < steps.length) {
+      kst.textContent = steps[i].kstLabel;
+      lbl.textContent = steps[i].label;
+      el.classList.remove('dial-empty');
+    } else {
+      kst.textContent = '';
+      lbl.textContent = '';
+      el.classList.add('dial-empty');
+    }
+  });
 }
 
 function startPlay() {
@@ -273,16 +305,7 @@ function updateDisplay() {
 
   updateGrid(zoneValues, state.currentStep, state.currentElement, state.currentStat);
 
-  const pct = (state.currentStep / (timeSteps.length-1)) * 100;
-  const prog = document.getElementById('timeline-progress');
-  const thumb = document.getElementById('timeline-thumb');
-  if (prog) prog.style.width = `${pct}%`;
-  if (thumb) thumb.style.left = `${pct}%`;
-
-  const td = document.getElementById('time-display');
-  const sd = document.getElementById('step-display');
-  if (td) td.textContent = step.kstLabel;
-  if (sd) sd.textContent = step.label;
+  updateDial();
 
   // 통계 카드
   const gs = globalStats[state.currentStep];

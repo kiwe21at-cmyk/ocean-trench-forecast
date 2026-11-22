@@ -456,89 +456,153 @@ html, body {
 }
 .step-btn:active { background: var(--bg-tertiary); }
 
-/* 타임라인 */
-.playbar-timeline {
+/* ═══════════════════════════════════════════
+   다이얼 드럼 타임라인
+   ═══════════════════════════════════════════ */
+
+/* dial-wrapper: playbar-timeline + playbar-info 대체 */
+.dial-wrapper {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
 }
 
-.timeline-track {
-  position: relative;
-  height: 8px;
+.dial-arrow {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: none;
   background: var(--bg-surface);
-  border-radius: 4px;
-  cursor: pointer;
-  margin: 0 4px;
-}
-
-.timeline-progress {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
-  border-radius: 4px;
-  transition: width 0.1s;
-  pointer-events: none;
-}
-
-.timeline-thumb {
-  position: absolute;
-  top: 50%;
-  width: 18px;
-  height: 18px;
-  background: var(--accent);
-  border: 3px solid var(--bg-secondary);
+  color: var(--text-primary);
   border-radius: 50%;
-  transform: translate(-50%, -50%);
-  transition: left 0.1s;
-  pointer-events: none;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
 }
+.dial-arrow:hover  { background: var(--bg-tertiary); }
+.dial-arrow:active { background: var(--accent-dim); color: #fff; }
 
-.timeline-tick {
-  position: absolute;
-  top: -3px;
-  width: 1px;
-  height: 14px;
-  background: rgba(255,255,255,0.1);
-  pointer-events: none;
-}
-
-.timeline-labels {
+/* 원통형 드럼 */
+.dial-drum {
+  flex: 1;
+  min-width: 0;
+  height: 62px;
   position: relative;
-  height: 18px;
-  margin: 4px 4px 0;
+  border-radius: 31px;
+  background: linear-gradient(180deg, #1d4a8a 0%, #152f54 55%, #0f2040 100%);
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+  box-shadow:
+    inset 0 2px 1px rgba(255,255,255,0.18),
+    inset 0 -2px 2px rgba(0,0,0,0.45),
+    inset 0 0 0 1px rgba(88,166,255,0.18),
+    0 3px 10px rgba(0,0,0,0.4);
 }
+.dial-drum:active { cursor: grabbing; }
 
-.timeline-label {
+/* 아이템 컨테이너 */
+.dial-items {
   position: absolute;
-  font-size: 9px;
-  color: var(--text-muted);
-  transform: translateX(-50%);
-  white-space: nowrap;
+  inset: 0;
 }
 
-/* 시간 표시 */
-.playbar-info {
+/* 각 슬롯: left:50% 기준으로 offset */
+.dial-item {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  flex-shrink: 0;
-  min-width: 80px;
+  align-items: center;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  line-height: 1.25;
+}
+.dial-item.dial-empty { opacity: 0 !important; }
+
+/* 현재 스텝 (중앙) */
+.dial-item[data-offset="0"] {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  z-index: 3;
 }
 
-.time-display {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
+/* ±1 — 가깝게 */
+.dial-item[data-offset="-1"] {
+  transform: translate(calc(-50% - 92px), -50%) perspective(280px) rotateY(18deg) scale(0.74);
+  opacity: 0.52;
+  z-index: 2;
+}
+.dial-item[data-offset="1"] {
+  transform: translate(calc(-50% + 92px), -50%) perspective(280px) rotateY(-18deg) scale(0.74);
+  opacity: 0.52;
+  z-index: 2;
+}
+
+/* ±2 — 멀리 */
+.dial-item[data-offset="-2"] {
+  transform: translate(calc(-50% - 170px), -50%) perspective(280px) rotateY(32deg) scale(0.54);
+  opacity: 0.2;
+  z-index: 1;
+}
+.dial-item[data-offset="2"] {
+  transform: translate(calc(-50% + 170px), -50%) perspective(280px) rotateY(-32deg) scale(0.54);
+  opacity: 0.2;
+  z-index: 1;
+}
+
+/* 텍스트 */
+.dial-kst {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+.dial-hlabel {
+  font-size: 10px;
+  color: rgba(255,255,255,0.65);
+  font-weight: 500;
 }
 
-.step-display {
-  font-size: 11px;
-  color: var(--accent);
-  font-weight: 500;
+/* 중앙 세로선 */
+.dial-center-line {
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  height: 76%;
+  width: 1px;
+  background: rgba(255,255,255,0.13);
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* 좌우 페이드 (원통 가장자리 효과) */
+.dial-fade-l,
+.dial-fade-r {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 22%;
+  pointer-events: none;
+  z-index: 5;
+}
+.dial-fade-l {
+  left: 0;
+  border-radius: 31px 0 0 31px;
+  background: linear-gradient(to right, #0f2040 0%, rgba(15,32,64,0.5) 55%, transparent 100%);
+}
+.dial-fade-r {
+  right: 0;
+  border-radius: 0 31px 31px 0;
+  background: linear-gradient(to left,  #0f2040 0%, rgba(15,32,64,0.5) 55%, transparent 100%);
 }
 
 /* ═══════════════════════════════════════════
